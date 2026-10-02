@@ -7,9 +7,10 @@ Repository: <https://github.com/Malverma/Firefox-Recolor>
 **Firefox Recolor** is a Firefox extension that puts a wallpaper image behind
 **every website** (`http://*/*`, `https://*/*`). Each page's opaque
 background layers are made transparent (or lightly tinted) so the wallpaper
-shows through behind the existing UI.
+shows through behind the existing UI. **Light sites are forced into dark
+mode** so they match the wallpaper instead of clashing with it.
 
-Most sites use **generic mode** (section 5.11), which measures the page and
+Most sites use **generic mode** (section 5.9), which measures the page and
 clears its background automatically. These sites have hand-tuned stylesheets
 instead, because generic mode can't handle their custom theme systems:
 
@@ -17,8 +18,6 @@ instead, because generic mode can't handle their custom theme systems:
 | -------------- | ------------------------------------------------------ |
 | YouTube        | `https://www.youtube.com/*` (except `/embed/*`)        |
 | YouTube Music  | `https://music.youtube.com/*`                          |
-| Gmail          | `https://mail.google.com/mail/*` (`gmail.com` redirects here) |
-| Google Search  | `https://www.google.com/` home page and `/search` results |
 
 The wallpaper defaults to the bundled `images/background.png`. The user can
 open a drag-and-drop upload page from the toolbar and drop in their own image,
@@ -105,9 +104,7 @@ firefox-recolor/
 ├── css/
 │   ├── generic.css
 │   ├── youtube.css
-│   ├── youtube-music.css
-│   ├── gmail.css
-│   └── google.css
+│   └── youtube-music.css
 ├── upload/
 │   ├── upload.html
 │   ├── upload.css
@@ -128,7 +125,7 @@ firefox-recolor/
   "manifest_version": 3,
   "name": "Firefox Recolor",
   "version": "2.0.0",
-  "description": "Puts a wallpaper of your choice behind every website, with tuned styles for YouTube, YouTube Music, Gmail and Google Search.",
+  "description": "Puts a wallpaper of your choice behind every website, forcing light sites into dark mode, with tuned styles for YouTube and YouTube Music.",
   "homepage_url": "https://github.com/Malverma/Firefox-Recolor",
   "icons": {
     "48": "icons/icon-48.png",
@@ -164,32 +161,10 @@ firefox-recolor/
       "run_at": "document_start"
     },
     {
-      "matches": ["https://mail.google.com/mail/*"],
-      "css": ["css/gmail.css"],
-      "js": ["content.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://www.google.com/",
-        "https://www.google.com/?*",
-        "https://www.google.com/webhp*",
-        "https://www.google.com/search*"
-      ],
-      "css": ["css/google.css"],
-      "js": ["content.js"],
-      "run_at": "document_start"
-    },
-    {
       "matches": ["http://*/*", "https://*/*"],
       "exclude_matches": [
         "https://www.youtube.com/*",
-        "https://music.youtube.com/*",
-        "https://mail.google.com/*",
-        "https://www.google.com/",
-        "https://www.google.com/?*",
-        "https://www.google.com/webhp*",
-        "https://www.google.com/search*"
+        "https://music.youtube.com/*"
       ],
       "css": ["css/generic.css"],
       "js": ["content.js", "generic.js"],
@@ -292,8 +267,7 @@ Every dedicated site stylesheet follows the same pattern:
    thumbnails and all foreground colors.
 
 All selectors **must be checked against the live DOM**, because these sites
-change their markup often. Google and Gmail use obfuscated class names, so
-those stylesheets prefer ids, ARIA roles and plain elements where possible.
+change their markup often.
 
 ### 5.6 css/youtube.css (www.youtube.com)
 
@@ -330,36 +304,7 @@ Carried over from BetterYoutubeMusic v1 (only the variable name changed):
 - Readability: nav bar `rgba(0,0,0,0.45)`, player bar `rgba(0,0,0,0.55)` +
   blur 12px, guide `rgba(0,0,0,0.35)` + blur 8px.
 
-### 5.8 css/gmail.css (mail.google.com)
-
-- Only the **outer frame** (behind the top bar and left navigation) shows the
-  wallpaper. The main mail panel (message list, open email, compose) keeps
-  Gmail's own background so mail stays readable.
-- Transparent: `body`, `#gb` (top bar), outer frame containers (`.wl`, `.no`,
-  `.nn`, `.w-asV`).
-- Readability: left navigation (`.aeN`) `rgba(255,255,255,0.6)` + blur 8px,
-  rounded corners.
-- Wallpaper tint is light (`rgba(255,255,255,0.35)`) to match Gmail's default
-  light theme. Gmail's own themes (Settings → Themes) may conflict; the
-  default theme is the supported setup.
-- The search bar, compose window, menus, and dialogs are untouched.
-
-### 5.9 css/google.css (www.google.com home + search)
-
-- Google's page background variable is also used by the search box and the
-  suggestion dropdown, so it is **not** overridden. `body` and page
-  containers are targeted directly instead.
-- Transparent: `body`, `#main`, `#cnt`, `#rcnt`, `#appbar`, `#top_nav`,
-  `#searchform`, `.sfbg`, `div[role="contentinfo"]` (footer).
-- Readability: result columns (`#center_col`, `#rhs`) get a translucent panel
-  (`rgba(255,255,255,0.75)` light / `rgba(31,31,31,0.75)` dark) + blur 8px,
-  rounded corners.
-- The wallpaper tint and panel colors follow `prefers-color-scheme`, since
-  Google follows the device theme by default.
-- The search box, suggestion dropdown, Google apps menu, account menu, and
-  result cards are untouched.
-
-### 5.10 Upload page (`upload/upload.html`, `upload.css`, `upload.js`)
+### 5.8 Upload page (`upload/upload.html`, `upload.css`, `upload.js`)
 
 A standalone extension page. It follows the system light/dark theme
 (`prefers-color-scheme`) and has no external resources.
@@ -399,7 +344,7 @@ A standalone extension page. It follows the system light/dark theme
 5. If decoding or saving fails, show the error and leave the stored image
    unchanged.
 
-### 5.11 Generic mode (`generic.js` + `css/generic.css`)
+### 5.9 Generic mode (`generic.js` + `css/generic.css`)
 
 Used on every site without a dedicated stylesheet. Arbitrary sites have no
 common theme variables, so the background is found by measuring the page.
@@ -413,26 +358,42 @@ common theme variables, so the background is found by measuring the page.
      no `background-image`) on `body`, then `html`, then the first large
      child/grandchild of `body`. Fallback: white. Colors are resolved to sRGB
      through a 1×1 canvas so any CSS color syntax works.
-  2. Set `--fr-base` (base color) and `--fr-tint` (base color at 0.75 alpha
-     on light pages, 0.55 on dark pages; "light" = luminance > 128) on
-     `<html>`.
+  2. Set `--fr-base` (base color) on `<html>`. If the base color is light
+     (luminance > 128), set `data-fr-invert` on `<html>` (forced dark mode,
+     below) and `--fr-tint: rgba(0, 0, 0, 0.6)`. Otherwise set `--fr-tint`
+     to the base color at 0.55 alpha.
   3. Set `data-fr` on `<html>`. Every rule in `generic.css` is gated on it,
      so nothing changes before this point and non-HTML documents are never
      styled.
 
-**Clearing backgrounds**
+**Clearing backgrounds and panels**
 
-- Breadth-first walk from `body`, descending only into **large** elements
-  (≥ 50% of viewport width **and** height; `display: contents` elements are
-  passed through). Capped at 2000 checks per scan.
-- An element gets `data-fr-clear` when its background is a plain opaque color
-  within RGB distance 30 of the base color, and it isn't `position: fixed` or
-  `sticky`.
+- Breadth-first walk from `body`, descending only into **layout-sized**
+  elements: ≥ 50% of the viewport's width **or** height (headers, sidebars,
+  columns), and at least 24 px in the other dimension. `display: contents`
+  elements are passed through. Capped at 2000 checks per scan.
+- Each layout-sized element with a plain opaque background (alpha ≥ 0.9, no
+  `background-image`) is classified once (remembered in a `WeakMap`):
+  - **Clear** (`data-fr-clear` → transparent): it's within RGB distance 30
+    of the color of the panel it sits in; or, outside any panel, it's large
+    (≥ 50% width **and** height), not `fixed`/`sticky`, and within distance
+    30 of the page base color.
+  - **Panel** (`data-fr-panel`): anything else, e.g. a white header, a gray
+    sidebar, a colored nav bar, a content column, a fixed app shell. It gets
+    its own color at 0.6 alpha (`--fr-panel`, set on the element) plus
+    `backdrop-filter: blur(12px)`, so the wallpaper shows through.
+  - **Flip** (`data-fr-flip`, panels only): a panel that would otherwise end
+    up light gets inverted on its own (`invert(1) hue-rotate(180deg)`), so
+    light panels with dark text/buttons come out dark with light
+    text/buttons. "Ends up light" = the panel is light on a page that isn't
+    inverted, or dark on a page that is (where the page inversion would
+    turn it light). Panels inside a flipped panel are not flipped again.
+- Media inside a flipped panel is inverted back, so it looks normal.
 - Never inspected or descended into: `img`, `video`, `canvas`, `iframe`,
   `svg`, `picture`, `object`, `embed`, form controls, `dialog`.
-- So: the page shell turns transparent; cards, menus, dialogs, sticky
-  headers, banners with images, and anything in a different color keep
-  their look.
+- So: the page shell turns transparent; headers, sidebars and columns become
+  dark translucent panels; cards, buttons, menus, dialogs and images inside
+  them keep their (dark-themed) look.
 
 **Updates**
 
@@ -453,10 +414,42 @@ html[data-fr] {
 html[data-fr] [data-fr-clear] {
   background-color: transparent !important;
 }
+
+html[data-fr] [data-fr-panel] {
+  background-color: var(--fr-panel) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+html[data-fr]:not(:has(:fullscreen)) [data-fr-flip] {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
 ```
 
-The tint uses the site's own base color, so text keeps roughly the
-contrast the site designed for.
+On dark pages the tint uses the site's own base color, so text keeps
+roughly the contrast the site designed for.
+
+**Forced dark mode (light pages)**
+
+Light pages would otherwise put dark text over a dark wallpaper (or need a
+heavy white tint that hides the wallpaper). Instead they're turned dark with
+a color inversion, the same approach as Dark Reader's "filter" mode:
+
+- `html[data-fr-invert]` gets `filter: invert(1) hue-rotate(180deg)`.
+  `hue-rotate` brings colors back near their original hue, so white → near
+  black, dark text → light, blue links stay blue-ish. The filter goes on
+  `<html>` because a filter on the root element is the one case that doesn't
+  create a containing block, so `position: fixed`/`sticky` keep working.
+- The wallpaper can't live in `<html>`'s own background (it would be
+  inverted), so in this mode it moves to an `html::before` layer
+  (`position: fixed; inset: 0; z-index: -2147483647; pointer-events: none`)
+  that has the same filter applied again, which cancels out.
+- Media is inverted back the same way so it looks normal: `img`, `video`,
+  `canvas`, `iframe`, `embed`, `object`, and elements with an inline
+  `background-image`, skipping descendants of an already re-inverted
+  element or of a flipped panel (which is already inverted back).
+- All forced-dark rules are gated on `:not(:has(:fullscreen))`, so
+  fullscreen video is never shown inverted.
+- Pages already dark (luminance ≤ 128) are not inverted.
 
 **Known limits**
 
@@ -465,8 +458,17 @@ contrast the site designed for.
   look unchanged).
 - Sites that paint their background with an image or gradient are left
   unchanged.
-- The wallpaper appears once the page has parsed, not at the very first
-  paint.
+- The wallpaper and forced dark mode appear once the page has parsed, so
+  light pages briefly show white while loading.
+- Forced dark mode: images set as CSS `background-image` from a stylesheet
+  (not inline) can't be found by selector and show inverted. Brand colors
+  shift (e.g. a dark blue header becomes light blue). Sites that apply their
+  own `filter` to images lose it.
+- Large dark sections of a light page that are smaller than half the
+  viewport in both directions (e.g. a dark card) are inverted to light.
+- `filter` and `backdrop-filter` on a panel make it the containing block for
+  `position: fixed` descendants, so a fixed dropdown inside a header may
+  position relative to the header instead of the viewport.
 - Like any visual change, a page's own scripts can read the computed
   background, including a custom image's data URL.
 
@@ -475,10 +477,11 @@ contrast the site designed for.
 | ID   | Requirement                                                                                     |
 | ---- | ----------------------------------------------------------------------------------------------- |
 | R1   | The wallpaper is visible on every dedicated site and on standard HTML pages elsewhere.           |
+| R1a  | Light pages are shown in dark mode; photos, video, and the wallpaper are not inverted.           |
 | R2   | The wallpaper stays applied after in-app (SPA) navigation without a reload.                      |
 | R3   | The wallpaper is fixed; it does not scroll with content.                                        |
 | R4   | The wallpaper covers the full viewport at any window size, without stretching (`cover`).         |
-| R5   | No flash of the default image when a custom image is set. No flash of a wrong background color in generic mode. |
+| R5   | No flash of the default image when a custom image is set. Generic mode never paints a wrong background color (a light page may show white until it has parsed). |
 | R6   | Playback, search, email, controls, and navigation work exactly as without the extension.        |
 | R7   | The extension makes no network requests.                                                        |
 | R8   | Iframes, non-HTML documents, and browser-protected pages are never changed.                       |
@@ -512,22 +515,21 @@ profile to test R13.
 6. Play a song and open Now Playing (Song and Video modes).
 7. Open a track menu and "Save to playlist". They are opaque.
 
-**Gmail**
+**Generic mode and forced dark**
 
-8. Open the inbox, a label, an email, and Compose. The frame around the
-   top bar and left nav shows the wallpaper; the mail panel is unchanged.
-9. Open the account menu, Google apps menu, and settings quick panel.
-
-**Google Search**
-
-10. Open `www.google.com`. The wallpaper shows behind the logo and search
-    box; the suggestion dropdown is opaque.
-11. Search for something. Results sit on a readable tinted panel. Check the
-    All, Images, and News tabs.
-12. Switch the device between light and dark theme.
-
-**Generic mode**
-
+8. Gmail: inbox, an email with images, Compose, account menu. Everything is
+   dark and readable; photos and avatars look normal.
+9. Google Search: home page, results, Images tab, a video result. The search
+   box and dropdown are dark; thumbnails look normal.
+10. A light site with a fixed/sticky header: the header stays in place while
+    scrolling.
+11. Play an embedded video and make it fullscreen. It isn't inverted.
+12. A site that's already dark (e.g. GitHub in dark mode): not inverted; the
+    wallpaper shows with a tint in the site's own color.
+12a. Sites with a white header or sidebar (on a light or dark page) and a
+    dark-colored nav bar on a light page: every bar ends up dark, translucent
+    and blurred, with light text and buttons; logos and avatars look normal;
+    dropdown menus open in the right place.
 13. Visit a range of sites: a light news site, a dark site (e.g. GitHub in
     dark mode), Wikipedia, Reddit, a docs site, a web app (e.g. Google
     Docs). The wallpaper shows where the page background was; cards, images,
@@ -573,5 +575,7 @@ Optional: `npx web-ext lint --ignore-files spec.md`.
 - A "Reset to default" button.
 - Sliders for dim/blur strength on the upload page.
 - Dedicated stylesheets for more sites where generic mode falls short.
+- Remember per-site light/dark detection to avoid the brief white flash.
+- A toggle to turn forced dark mode off.
 - Paste an image from the clipboard on the upload page.
 - Animated (GIF/WebP) wallpapers.

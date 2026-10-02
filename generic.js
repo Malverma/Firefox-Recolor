@@ -3,7 +3,10 @@
 // Finds the page's base background color, then marks the large layout
 // containers painted in that color with [data-fr-clear] so css/generic.css
 // can make them transparent. Smaller surfaces (cards, menus, dialogs) and
-// anything with its own background image are left alone.
+// anything with its own background image are left alone. Light pages are
+// also marked [data-fr-invert] to force them dark. Other opaque headers,
+// sidebars and columns become translucent panels [data-fr-panel], flipped
+// [data-fr-flip] when they would otherwise end up light.
 (() => {
   if (!/^(text\/html|application\/xhtml\+xml)$/.test(document.contentType)) return;
 
@@ -60,29 +63,80 @@
   }
 
   let base;
+  let pageInverted = false;
 
-  function matchesBase(el) {
-    const cs = getComputedStyle(el);
-    if (cs.position === "fixed" || cs.position === "sticky") return false;
+  const distance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+  const isLight = ({ r, g, b }) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 128;
+
+  // What each element was classified as, so rescans don't re-read
+  // backgrounds the extension itself has already changed.
+  const classified = new WeakMap();
+
+  function classify(el, rect, ctx) {
     const c = solidBackground(el);
-    return !!c && Math.hypot(c.r - base.r, c.g - base.g, c.b - base.b) < COLOR_DISTANCE;
+    if (!c) return { kind: "none" };
+    const large =
+      el === document.body || (rect.width >= innerWidth * 0.5 && rect.height >= innerHeight * 0.5);
+    const position = getComputedStyle(el).position;
+    const pinned = position === "fixed" || position === "sticky";
+
+    // Same color as the panel or page it sits on: let that show through.
+    if (ctx.panel && distance(c, ctx.panel) < COLOR_DISTANCE) return { kind: "clear" };
+    if (!ctx.panel && large && !pinned && distance(c, base) < COLOR_DISTANCE) {
+      return { kind: "clear" };
+    }
+
+    // Anything else (headers, sidebars, content columns, bars in a different
+    // color) becomes a translucent panel. Flip it if it would end up light:
+    // a light panel on a page that isn't inverted, or a dark one on a page
+    // that is.
+    const endsLight = isLight(c) !== (pageInverted !== ctx.flipped);
+    return { kind: "panel", color: c, flip: endsLight && !ctx.flipped };
   }
 
-  // Breadth-first walk that only descends into large elements, so it stays
-  // on the page's layout skeleton and never visits every node.
+  function apply(el, result) {
+    if (result.kind === "clear") {
+      el.setAttribute("data-fr-clear", "");
+    } else if (result.kind === "panel") {
+      const { r, g, b } = result.color;
+      el.style.setProperty("--fr-panel", `rgba(${r}, ${g}, ${b}, 0.6)`);
+      el.setAttribute("data-fr-panel", "");
+      if (result.flip) el.setAttribute("data-fr-flip", "");
+    }
+  }
+
+  // Breadth-first walk that only descends into large or bar/sidebar-sized
+  // elements, so it stays on the page's layout skeleton and never visits
+  // every node. ctx carries the nearest panel color and whether an ancestor
+  // was flipped.
   function scan() {
-    const queue = [document.body];
+    const queue = [[document.body, { panel: null, flipped: false }]];
     let checks = 0;
     while (queue.length && checks < MAX_CHECKS) {
-      const el = queue.shift();
+      const [el, ctx] = queue.shift();
       checks++;
-      const contents = getComputedStyle(el).display === "contents";
-      if (el !== document.body && !contents && !isLarge(el)) continue;
-      if (!contents && !el.hasAttribute("data-fr-clear") && matchesBase(el)) {
-        el.setAttribute("data-fr-clear", "");
+      let childCtx = ctx;
+
+      if (getComputedStyle(el).display !== "contents") {
+        const rect = el.getBoundingClientRect();
+        const wide = rect.width >= innerWidth * 0.5;
+        const tall = rect.height >= innerHeight * 0.5;
+        const sized = (wide || tall) && Math.min(rect.width, rect.height) >= 24;
+        if (el !== document.body && !sized) continue;
+
+        let result = classified.get(el);
+        if (!result) {
+          result = classify(el, rect, ctx);
+          classified.set(el, result);
+          apply(el, result);
+        }
+        if (result.kind === "panel") {
+          childCtx = { panel: result.color, flipped: ctx.flipped || result.flip };
+        }
       }
+
       for (const child of el.children) {
-        if (!SKIP.has(child.tagName.toUpperCase())) queue.push(child);
+        if (!SKIP.has(child.tagName.toUpperCase())) queue.push([child, childCtx]);
       }
     }
   }
@@ -101,9 +155,15 @@
     if (!document.body) return;
     base = findBase();
     const { r, g, b } = base;
-    const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 128;
+    pageInverted = isLight(base);
     root.style.setProperty("--fr-base", `rgb(${r}, ${g}, ${b})`);
-    root.style.setProperty("--fr-tint", `rgba(${r}, ${g}, ${b}, ${light ? 0.75 : 0.55})`);
+    if (pageInverted) {
+      // Light pages are forced dark (see "Forced dark mode" in generic.css).
+      root.style.setProperty("--fr-tint", "rgba(0, 0, 0, 0.6)");
+      root.setAttribute("data-fr-invert", "");
+    } else {
+      root.style.setProperty("--fr-tint", `rgba(${r}, ${g}, ${b}, 0.55)`);
+    }
     root.setAttribute("data-fr", "");
     scan();
     new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true });
