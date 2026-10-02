@@ -1,0 +1,21 @@
+/* Firefox Recolor: wallpaper behind any website. Visual only.
+
+   Nothing here applies until generic.js has measured the page and set
+   [data-fr] on <html>, along with --fr-base (the page's own background
+   color) and --fr-tint (that color, translucent, for readability). */
+
+html[data-fr] {
+  background-color: var(--fr-base) !important;
+  background-image:
+    linear-gradient(var(--fr-tint), var(--fr-tint)),
+    var(--fr-bg-image, none) !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+/* Large layout containers painted in the page's base color. */
+html[data-fr] [data-fr-clear] {
+  background-color: transparent !important;
+}
