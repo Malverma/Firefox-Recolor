@@ -1,4 +1,4 @@
-const DEFAULT_URL = browser.runtime.getURL("images/background.png");
+const DEFAULT_URL = browser.runtime.getURL("images/background.jpg");
 
 function apply(dataUrl) {
   document.documentElement.style.setProperty(

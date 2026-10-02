@@ -50,7 +50,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["images/background.png"],
+      "resources": ["images/background.jpg"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ],

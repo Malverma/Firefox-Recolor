@@ -1,4 +1,4 @@
-const DEFAULT_URL = browser.runtime.getURL("images/background.png");
+const DEFAULT_URL = browser.runtime.getURL("images/background.jpg");
 const TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_SIDE = 3840;

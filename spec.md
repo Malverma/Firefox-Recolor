@@ -19,7 +19,7 @@ instead, because generic mode can't handle their custom theme systems:
 | YouTube        | `https://www.youtube.com/*` (except `/embed/*`)        |
 | YouTube Music  | `https://music.youtube.com/*`                          |
 
-The wallpaper defaults to the bundled `images/background.png`. The user can
+The wallpaper defaults to the bundled `images/background.jpg`. The user can
 open a drag-and-drop upload page from the toolbar and drop in their own image,
 which **replaces** the current wallpaper on every site at once.
 
@@ -67,7 +67,7 @@ The extension must **not**:
 
 ### 4.1 Default image
 
-- `images/background.png` (currently 1080×607), bundled with the extension.
+- `images/background.jpg` (1920×1280, copyright-free), bundled with the extension.
 - Used whenever no custom image has been uploaded.
 - A higher-resolution file can be dropped in at the same path with no code
   changes.
@@ -79,7 +79,7 @@ The extension must **not**:
 - One image is shared by all sites.
 - Only one custom image exists at a time. Saving a new one overwrites the key,
   so the previous upload is discarded.
-- The bundled `background.png` file is never modified (extension files are
+- The bundled `background.jpg` file is never modified (extension files are
   read-only). "Replace" means the custom image takes precedence over it.
 - Accepted input types: PNG, JPEG, WebP. Max input file size: 20 MB.
 - Before saving, the upload page normalizes the image:
@@ -110,7 +110,7 @@ firefox-recolor/
 │   ├── upload.css
 │   └── upload.js
 ├── images/
-│   └── background.png
+│   └── background.jpg
 ├── icons/
 │   ├── icon-48.png
 │   └── icon-96.png
@@ -173,7 +173,7 @@ firefox-recolor/
   ],
   "web_accessible_resources": [
     {
-      "resources": ["images/background.png"],
+      "resources": ["images/background.jpg"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ],
@@ -194,7 +194,7 @@ firefox-recolor/
   websites" at install. No `tabs` permission.
 - The generic entry excludes every URL that has a dedicated stylesheet, so a
   page never gets both.
-- `background.png` is web-accessible on all sites so pages can load it as a
+- `background.jpg` is web-accessible on all sites so pages can load it as a
   CSS background. Firefox's per-install random `moz-extension://` UUID keeps
   this from being usable to detect the extension.
 - Content scripts run in the top frame only (`all_frames` defaults to false),
@@ -225,7 +225,7 @@ site stylesheet through the `--fr-bg-image` custom property on `<html>`. Keeps
 open tabs in sync when the image changes.
 
 ```js
-const DEFAULT_URL = browser.runtime.getURL("images/background.png");
+const DEFAULT_URL = browser.runtime.getURL("images/background.jpg");
 
 function apply(dataUrl) {
   document.documentElement.style.setProperty(
