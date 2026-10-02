@@ -1,10 +1,13 @@
-# Firefox Recolor — Firefox Extension Spec
+# Recolor for Firefox — Firefox Extension Spec
 
 Repository: <https://github.com/Malverma/Firefox-Recolor>
 
+The add-on is named "Recolor for Firefox" because AMO doesn't allow the
+Firefox or Mozilla trademarks in names except in the "for Firefox" form.
+
 ## 1. Overview
 
-**Firefox Recolor** is a Firefox extension that puts a wallpaper image behind
+**Recolor for Firefox** is a Firefox extension that puts a wallpaper image behind
 **every website** (`http://*/*`, `https://*/*`). Each page's opaque
 background layers are made transparent (or lightly tinted) so the wallpaper
 shows through behind the existing UI. **Light sites are forced into dark
@@ -28,7 +31,7 @@ else.
 
 History: this grew out of BetterYoutubeMusic (YouTube Music only,
 <https://github.com/Malverma/BetterYoutubeMusic>), which stays a separate
-project. Everything for Firefox Recolor lives in the Firefox-Recolor repo.
+project. Everything for Recolor for Firefox lives in the Firefox-Recolor repo.
 
 ## 2. Goals
 
@@ -123,7 +126,7 @@ firefox-recolor/
 ```json
 {
   "manifest_version": 3,
-  "name": "Firefox Recolor",
+  "name": "Recolor for Firefox",
   "version": "2.0.0",
   "description": "Puts a wallpaper of your choice behind every website, forcing light sites into dark mode, with tuned styles for YouTube and YouTube Music.",
   "homepage_url": "https://github.com/Malverma/Firefox-Recolor",
@@ -136,7 +139,7 @@ firefox-recolor/
     "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "Firefox Recolor: change background",
+    "default_title": "Recolor for Firefox: change background",
     "default_icon": {
       "48": "icons/icon-48.png",
       "96": "icons/icon-96.png"
@@ -216,7 +219,7 @@ browser.action.onClicked.addListener(() => {
 ```
 
 `openOptionsPage()` focuses the existing upload tab if one is open. The same
-page is also reachable from `about:addons` → Firefox Recolor → Preferences.
+page is also reachable from `about:addons` → Recolor for Firefox → Preferences.
 
 ### 5.4 content.js
 
@@ -311,7 +314,7 @@ A standalone extension page. It follows the system light/dark theme
 
 #### Layout
 
-1. Heading: "Firefox Recolor background".
+1. Heading: "Recolor for Firefox: background".
 2. **Current background** preview: a 16:9 box showing the image in use, with
    a label "Default" or "Custom (uploaded <date>)".
 3. **Drop zone**: a large dashed-border area reading "Drop an image here or
