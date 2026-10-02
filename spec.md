@@ -368,37 +368,46 @@ common theme variables, so the background is found by measuring the page.
 
 **Clearing backgrounds and panels**
 
-- Breadth-first walk from `body`, descending only into **layout-sized**
-  elements: ≥ 50% of the viewport's width **or** height (headers, sidebars,
-  columns), and at least 24 px in the other dimension. `display: contents`
-  elements are passed through. Capped at 2000 checks per scan.
-- Each layout-sized element with a plain opaque background (alpha ≥ 0.9, no
-  `background-image`) is classified once (remembered in a `WeakMap`):
-  - **Clear** (`data-fr-clear` → transparent): it's within RGB distance 30
-    of the color of the panel it sits in; or, outside any panel, it's large
-    (≥ 50% width **and** height), not `fixed`/`sticky`, and within distance
-    30 of the page base color.
-  - **Panel** (`data-fr-panel`): anything else, e.g. a white header, a gray
-    sidebar, a colored nav bar, a content column, a fixed app shell. It gets
-    its own color at 0.6 alpha (`--fr-panel`, set on the element) plus
-    `backdrop-filter: blur(12px)`, so the wallpaper shows through.
+- Depth-first walk of every element under `body` (capped at 50,000 per
+  pass), skipping `img`, `video`, `canvas`, `iframe`, `svg`, `picture`,
+  `object`, `embed`, form controls, `dialog`. `display: none` subtrees are
+  skipped and re-checked when shown; `display: contents` is passed through.
+- Each pass reads all styles first and writes all attributes after, so
+  layout is computed once per pass.
+- Each element is classified once (remembered in a `WeakMap`) using the
+  context it sits in: the color **behind** it (page base color, or the
+  nearest opaque ancestor's original color), whether an ancestor panel is
+  **flipped**, and whether it's inside an **overlay** (an `absolute`/`fixed`
+  element smaller than layout size, or `role` = dialog, alertdialog, menu,
+  listbox, tooltip).
+- Elements with a plain opaque background (alpha ≥ 0.9, no
+  `background-image`) are classified as:
+  - **Clear** (`data-fr-clear` → transparent): its color is within RGB
+    distance 30 of the color behind it, it isn't `absolute`/`fixed`/`sticky`,
+    and it isn't in an overlay. This covers wrappers, cards, search result
+    boxes, and buttons painted in the page or panel color. Clearing these is
+    visually neutral on its own; once what's behind them is cleared too, the
+    wallpaper shows through.
+  - **Panel** (`data-fr-panel`): layout-sized (≥ 50% of the viewport's width
+    **or** height, ≥ 24 px in the other dimension), not in an overlay, and
+    not cleared, e.g. a white sticky header, a gray sidebar, a colored nav
+    bar, a content column, a fixed app shell. It gets its own color at 0.6
+    alpha (`--fr-panel`) plus `backdrop-filter: blur(12px)`.
   - **Flip** (`data-fr-flip`, panels only): a panel that would otherwise end
-    up light gets inverted on its own (`invert(1) hue-rotate(180deg)`), so
-    light panels with dark text/buttons come out dark with light
-    text/buttons. "Ends up light" = the panel is light on a page that isn't
-    inverted, or dark on a page that is (where the page inversion would
-    turn it light). Panels inside a flipped panel are not flipped again.
+    up light is inverted on its own (`invert(1) hue-rotate(180deg)`), so
+    light panels with dark text/buttons come out dark. "Ends up light" = the
+    panel is light on a page that isn't inverted, or dark on a page that is.
+    Panels inside a flipped panel are not flipped again.
+  - **Solid**: anything else (cards in their own color, popups, menus,
+    dropdowns, tooltips) keeps its look.
 - Media inside a flipped panel is inverted back, so it looks normal.
-- Never inspected or descended into: `img`, `video`, `canvas`, `iframe`,
-  `svg`, `picture`, `object`, `embed`, form controls, `dialog`.
-- So: the page shell turns transparent; headers, sidebars and columns become
-  dark translucent panels; cards, buttons, menus, dialogs and images inside
-  them keep their (dark-themed) look.
 
 **Updates**
 
-- A `MutationObserver` (`childList`, `subtree` on `body`) and `resize`
-  trigger a rescan, throttled to at most one every 500 ms.
+- A `MutationObserver` on `body` watches added nodes and `class`, `style`,
+  `hidden`, `open` attribute changes. Changed subtrees are batched every
+  300 ms and processed with the context rebuilt from their ancestors; only
+  elements not yet classified are read. `resize` re-processes from `body`.
 
 **generic.css**
 
@@ -526,7 +535,9 @@ profile to test R13.
 11. Play an embedded video and make it fullscreen. It isn't inverted.
 12. A site that's already dark (e.g. GitHub in dark mode): not inverted; the
     wallpaper shows with a tint in the site's own color.
-12a. Sites with a white header or sidebar (on a light or dark page) and a
+12a. Google results: the box around each result and the result chips show
+    the wallpaper; the search suggestion dropdown stays opaque.
+12b. Sites with a white header or sidebar (on a light or dark page) and a
     dark-colored nav bar on a light page: every bar ends up dark, translucent
     and blurred, with light text and buttons; logos and avatars look normal;
     dropdown menus open in the right place.

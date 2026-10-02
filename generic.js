@@ -1,12 +1,12 @@
 // Generic mode: every website without a dedicated stylesheet.
 //
-// Finds the page's base background color, then marks the large layout
-// containers painted in that color with [data-fr-clear] so css/generic.css
-// can make them transparent. Smaller surfaces (cards, menus, dialogs) and
-// anything with its own background image are left alone. Light pages are
-// also marked [data-fr-invert] to force them dark. Other opaque headers,
-// sidebars and columns become translucent panels [data-fr-panel], flipped
-// [data-fr-flip] when they would otherwise end up light.
+// Finds the page's base background color, then marks every element painted
+// in the same color as what's behind it with [data-fr-clear] so
+// css/generic.css can make it transparent. Opaque headers, sidebars and
+// columns in other colors become translucent panels [data-fr-panel], flipped
+// [data-fr-flip] when they would otherwise end up light. Popups and anything
+// with its own background image are left alone. Light pages are also marked
+// [data-fr-invert] to force them dark.
 (() => {
   if (!/^(text\/html|application\/xhtml\+xml)$/.test(document.contentType)) return;
 
@@ -15,7 +15,7 @@
     "IMG", "VIDEO", "CANVAS", "IFRAME", "SVG", "PICTURE", "OBJECT", "EMBED",
     "INPUT", "TEXTAREA", "SELECT", "BUTTON", "DIALOG", "SCRIPT", "STYLE",
   ]);
-  const MAX_CHECKS = 2000;
+  const MAX_ELEMENTS = 50000;
   const COLOR_DISTANCE = 30;
 
   // Resolve any CSS color (rgb, oklch, color(), …) to sRGB through a 1×1 canvas.
@@ -64,34 +64,71 @@
 
   let base;
   let pageInverted = false;
+  let rootCtx;
 
   const distance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
   const isLight = ({ r, g, b }) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 128;
+  const POPUP_ROLES = /^(dialog|alertdialog|menu|listbox|tooltip)$/;
 
-  // What each element was classified as, so rescans don't re-read
+  // What each element was classified as, so later passes don't re-read
   // backgrounds the extension itself has already changed.
   const classified = new WeakMap();
 
-  function classify(el, rect, ctx) {
-    const c = solidBackground(el);
-    if (!c) return { kind: "none" };
-    const large =
-      el === document.body || (rect.width >= innerWidth * 0.5 && rect.height >= innerHeight * 0.5);
-    const position = getComputedStyle(el).position;
-    const pinned = position === "fixed" || position === "sticky";
+  // Read-only: decide what to do with el, given the context it sits in.
+  //   ctx.behind  – color painted behind el (page base, or nearest opaque ancestor)
+  //   ctx.flipped – an ancestor panel is flipped
+  //   ctx.overlay – el is inside a popup (menu, dropdown, dialog, tooltip)
+  function classify(el, ctx) {
+    const cs = getComputedStyle(el);
+    if (cs.display === "none") return null; // not cached: re-checked once shown
+    if (cs.display === "contents") return { kind: "pass" };
 
-    // Same color as the panel or page it sits on: let that show through.
-    if (ctx.panel && distance(c, ctx.panel) < COLOR_DISTANCE) return { kind: "clear" };
-    if (!ctx.panel && large && !pinned && distance(c, base) < COLOR_DISTANCE) {
-      return { kind: "clear" };
+    const rect = el.getBoundingClientRect();
+    const sized =
+      el === document.body ||
+      ((rect.width >= innerWidth * 0.5 || rect.height >= innerHeight * 0.5) &&
+        Math.min(rect.width, rect.height) >= 24);
+    const floating = cs.position === "absolute" || cs.position === "fixed";
+    const pinned = floating || cs.position === "sticky";
+    const overlay = (floating && !sized) || POPUP_ROLES.test(el.getAttribute("role") || "");
+
+    let color = null;
+    if (cs.backgroundImage === "none") {
+      const c = toRgba(cs.backgroundColor);
+      if (c.a >= 0.9) color = c;
+    }
+    if (!color) return { kind: "none", overlay };
+
+    // Same color as what's behind it (result boxes, cards, wrappers on the
+    // page or on a panel): clearing it looks the same, and lets the
+    // wallpaper through once what's behind it is cleared too. Popups stay
+    // opaque so they remain readable over the content beneath them.
+    if (!ctx.overlay && !overlay && !pinned && distance(color, ctx.behind) < COLOR_DISTANCE) {
+      return { kind: "clear", color, overlay };
     }
 
-    // Anything else (headers, sidebars, content columns, bars in a different
-    // color) becomes a translucent panel. Flip it if it would end up light:
-    // a light panel on a page that isn't inverted, or a dark one on a page
-    // that is.
-    const endsLight = isLight(c) !== (pageInverted !== ctx.flipped);
-    return { kind: "panel", color: c, flip: endsLight && !ctx.flipped };
+    // Headers, sidebars, columns, app shells in their own color: translucent
+    // panel. Flip it if it would end up light: a light panel on a page that
+    // isn't inverted, or a dark one on a page that is.
+    if (sized && !ctx.overlay) {
+      const endsLight = isLight(color) !== (pageInverted !== ctx.flipped);
+      return { kind: "panel", color, overlay, flip: endsLight && !ctx.flipped };
+    }
+
+    // Anything else keeps its look.
+    return { kind: "solid", color, overlay };
+  }
+
+  function childContext(ctx, result) {
+    if (result.kind === "pass") return ctx;
+    let next = ctx;
+    if (result.overlay && !ctx.overlay) next = { ...next, overlay: true };
+    if (result.kind === "panel") {
+      next = { ...next, behind: result.color, flipped: ctx.flipped || result.flip };
+    } else if (result.kind === "solid") {
+      next = { ...next, behind: result.color };
+    }
+    return next;
   }
 
   function apply(el, result) {
@@ -105,50 +142,80 @@
     }
   }
 
-  // Breadth-first walk that only descends into large or bar/sidebar-sized
-  // elements, so it stays on the page's layout skeleton and never visits
-  // every node. ctx carries the nearest panel color and whether an ancestor
-  // was flipped.
-  function scan() {
-    const queue = [[document.body, { panel: null, flipped: false }]];
-    let checks = 0;
-    while (queue.length && checks < MAX_CHECKS) {
-      const [el, ctx] = queue.shift();
-      checks++;
-      let childCtx = ctx;
+  // Context for an element from its (already classified) ancestors, or null
+  // if one of them hasn't been processed (hidden, or inside skipped content).
+  function contextFor(el) {
+    const chain = [];
+    for (let p = el.parentElement; p && p !== root; p = p.parentElement) {
+      if (SKIP.has(p.tagName.toUpperCase())) return null;
+      chain.push(p);
+    }
+    let ctx = rootCtx;
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const result = classified.get(chain[i]);
+      if (!result) return null;
+      ctx = childContext(ctx, result);
+    }
+    return ctx;
+  }
 
-      if (getComputedStyle(el).display !== "contents") {
-        const rect = el.getBoundingClientRect();
-        const wide = rect.width >= innerWidth * 0.5;
-        const tall = rect.height >= innerHeight * 0.5;
-        const sized = (wide || tall) && Math.min(rect.width, rect.height) >= 24;
-        if (el !== document.body && !sized) continue;
-
-        let result = classified.get(el);
-        if (!result) {
-          result = classify(el, rect, ctx);
-          classified.set(el, result);
-          apply(el, result);
-        }
-        if (result.kind === "panel") {
-          childCtx = { panel: result.color, flipped: ctx.flipped || result.flip };
-        }
+  // Classify a subtree. All reads happen first and all writes after, so the
+  // browser only has to compute styles and layout once per pass.
+  function processTree(start, ctx) {
+    const writes = [];
+    const stack = [[start, ctx]];
+    let count = 0;
+    while (stack.length && count < MAX_ELEMENTS) {
+      const [el, elCtx] = stack.pop();
+      count++;
+      let result = classified.get(el);
+      if (!result) {
+        result = classify(el, elCtx);
+        if (!result) continue;
+        classified.set(el, result);
+        writes.push([el, result]);
       }
-
+      const next = childContext(elCtx, result);
       for (const child of el.children) {
-        if (!SKIP.has(child.tagName.toUpperCase())) queue.push([child, childCtx]);
+        if (!SKIP.has(child.tagName.toUpperCase())) stack.push([child, next]);
       }
+    }
+    for (const [el, result] of writes) apply(el, result);
+  }
+
+  // Added nodes and class/visibility changes are processed in batches.
+  const dirty = new Set();
+  let pending = false;
+
+  function flush() {
+    pending = false;
+    const batch = new Set(dirty);
+    dirty.clear();
+    for (const el of batch) {
+      if (!el.isConnected || SKIP.has(el.tagName.toUpperCase())) continue;
+      let covered = false;
+      for (let p = el.parentElement; p && !covered; p = p.parentElement) covered = batch.has(p);
+      if (covered) continue;
+      const ctx = el === document.body ? rootCtx : contextFor(el);
+      if (ctx) processTree(el, ctx);
     }
   }
 
-  let pending = false;
-  function scheduleScan() {
+  function markDirty(el) {
+    dirty.add(el);
     if (pending) return;
     pending = true;
-    setTimeout(() => {
-      pending = false;
-      scan();
-    }, 500);
+    setTimeout(flush, 300);
+  }
+
+  function onMutations(records) {
+    for (const m of records) {
+      if (m.type === "childList") {
+        for (const node of m.addedNodes) if (node.nodeType === Node.ELEMENT_NODE) markDirty(node);
+      } else {
+        markDirty(m.target);
+      }
+    }
   }
 
   function activate() {
@@ -165,9 +232,15 @@
       root.style.setProperty("--fr-tint", `rgba(${r}, ${g}, ${b}, 0.55)`);
     }
     root.setAttribute("data-fr", "");
-    scan();
-    new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true });
-    addEventListener("resize", scheduleScan);
+    rootCtx = { behind: base, flipped: false, overlay: false };
+    processTree(document.body, rootCtx);
+    new MutationObserver(onMutations).observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden", "open"],
+    });
+    addEventListener("resize", () => markDirty(document.body));
   }
 
   if (document.readyState === "loading") {
