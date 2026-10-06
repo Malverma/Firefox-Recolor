@@ -115,8 +115,12 @@ firefox-recolor/
 ├── images/
 │   └── background.jpg
 ├── icons/
+│   ├── icon-16.png
+│   ├── icon-32.png
 │   ├── icon-48.png
-│   └── icon-96.png
+│   ├── icon-96.png
+│   ├── icon-128.png
+│   └── source/icon.svg   (master artwork)
 ├── LICENSE
 └── spec.md                (not packaged)
 ```
@@ -131,8 +135,11 @@ firefox-recolor/
   "description": "Puts a wallpaper of your choice behind every website, forcing light sites into dark mode, with tuned styles for YouTube and YouTube Music.",
   "homepage_url": "https://github.com/Malverma/Firefox-Recolor",
   "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
-    "96": "icons/icon-96.png"
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
   },
   "permissions": ["storage"],
   "background": {
@@ -141,8 +148,8 @@ firefox-recolor/
   "action": {
     "default_title": "Recolor for Firefox: change background",
     "default_icon": {
-      "48": "icons/icon-48.png",
-      "96": "icons/icon-96.png"
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
     }
   },
   "options_ui": {
