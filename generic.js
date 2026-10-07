@@ -4,7 +4,9 @@
 // in the same color as what's behind it with [data-fr-clear] so
 // css/generic.css can make it transparent. Opaque headers, sidebars and
 // columns in other colors become translucent panels [data-fr-panel], flipped
-// [data-fr-flip] when they would otherwise end up light. Popups and anything
+// [data-fr-flip] when they would otherwise end up light. Sticky bars and
+// search-box shells in the color behind them are frosted [data-fr-frost].
+// Popups and anything
 // with its own background image are left alone. Light pages are also marked
 // [data-fr-invert] to force them dark.
 (() => {
@@ -35,6 +37,21 @@
       colorCache.set(color, rgba);
     }
     return rgba;
+  }
+
+  // A background image that is only a gradient of one color fading in or
+  // out (e.g. a fade into the page color above a sticky bar): that color,
+  // opaque. Null for anything else.
+  function fadeColor(image) {
+    if (image.includes("url(")) return null;
+    let color = null;
+    for (const stop of image.match(/(?:rgba?|color)\([^()]*\)/g) || []) {
+      const c = toRgba(stop);
+      if (c.a < 0.05) continue;
+      if (color && distance(c, color) >= COLOR_DISTANCE) return null;
+      color ||= { ...c, a: 1 };
+    }
+    return color;
   }
 
   // The element's background color, if it is a plain opaque color.
@@ -69,6 +86,8 @@
   const distance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
   const isLight = ({ r, g, b }) => 0.2126 * r + 0.7152 * g + 0.0722 * b > 128;
   const POPUP_ROLES = /^(dialog|alertdialog|menu|listbox|tooltip)$/;
+  const TEXT_FIELD =
+    'textarea, input:not([type]), input[type="text"], input[type="search"], [contenteditable=""], [contenteditable="true"]';
 
   // What each element was classified as, so later passes don't re-read
   // backgrounds the extension itself has already changed.
@@ -78,6 +97,7 @@
   //   ctx.behind  – color painted behind el (page base, or nearest opaque ancestor)
   //   ctx.flipped – an ancestor panel is flipped
   //   ctx.overlay – el is inside a popup (menu, dropdown, dialog, tooltip)
+  //   ctx.blurred – an ancestor already blurs what's behind it
   function classify(el, ctx) {
     const cs = getComputedStyle(el);
     if (cs.display === "none") return null; // not cached: re-checked once shown
@@ -90,20 +110,50 @@
         Math.min(rect.width, rect.height) >= 24);
     const floating = cs.position === "absolute" || cs.position === "fixed";
     const pinned = floating || cs.position === "sticky";
-    const overlay = (floating && !sized) || POPUP_ROLES.test(el.getAttribute("role") || "");
+    const popup = POPUP_ROLES.test(el.getAttribute("role") || "");
+    const overlay = (floating && !sized) || popup;
 
     let color = null;
     if (cs.backgroundImage === "none") {
       const c = toRgba(cs.backgroundColor);
       if (c.a >= 0.9) color = c;
     }
-    if (!color) return { kind: "none", overlay };
+    let fade = null;
+    if (cs.backgroundImage !== "none") {
+      fade = fadeColor(cs.backgroundImage);
+      const bg = toRgba(cs.backgroundColor);
+      if (fade && bg.a >= 0.05 && distance(bg, fade) >= COLOR_DISTANCE) fade = null;
+    }
+    if (!color && !fade) return { kind: "none", overlay };
+    color ||= fade;
+    const matches = distance(color, ctx.behind) < COLOR_DISTANCE;
+
+    // Fades into the color behind them are decorative: clear them wherever
+    // they are.
+    if (fade && matches && !popup) return { kind: "clear", color, overlay };
+    if (fade) return { kind: "none", overlay };
+
+    // Sticky bars, and floating shells around a search or chat box (e.g.
+    // Google's "Ask anything"), in the color behind them: left opaque they
+    // show as a rectangle around the box's rounded edges, cleared they'd let
+    // scrolled content show through. Frost them instead, or just clear them
+    // inside a panel, which already blurs what's behind it (blurring twice
+    // shows as a darker box). Search-box shells are often wider than half
+    // the window, so only their height counts: as panels they'd show as a
+    // dark box.
+    const shell = rect.height < innerHeight * 0.5 && el.querySelector(TEXT_FIELD);
+    if (
+      !ctx.overlay && !popup && pinned && matches &&
+      ((cs.position === "sticky" && !sized) || shell)
+    ) {
+      return { kind: ctx.blurred ? "clear" : "frost", color, overlay: false };
+    }
 
     // Same color as what's behind it (result boxes, cards, wrappers on the
     // page or on a panel): clearing it looks the same, and lets the
     // wallpaper through once what's behind it is cleared too. Popups stay
     // opaque so they remain readable over the content beneath them.
-    if (!ctx.overlay && !overlay && !pinned && distance(color, ctx.behind) < COLOR_DISTANCE) {
+    if (!ctx.overlay && !overlay && !pinned && matches) {
       return { kind: "clear", color, overlay };
     }
 
@@ -124,7 +174,9 @@
     let next = ctx;
     if (result.overlay && !ctx.overlay) next = { ...next, overlay: true };
     if (result.kind === "panel") {
-      next = { ...next, behind: result.color, flipped: ctx.flipped || result.flip };
+      next = { ...next, behind: result.color, flipped: ctx.flipped || result.flip, blurred: true };
+    } else if (result.kind === "frost") {
+      next = { ...next, blurred: true };
     } else if (result.kind === "solid") {
       next = { ...next, behind: result.color };
     }
@@ -134,6 +186,8 @@
   function apply(el, result) {
     if (result.kind === "clear") {
       el.setAttribute("data-fr-clear", "");
+    } else if (result.kind === "frost") {
+      el.setAttribute("data-fr-frost", "");
     } else if (result.kind === "panel") {
       const { r, g, b } = result.color;
       el.style.setProperty("--fr-panel", `rgba(${r}, ${g}, ${b}, 0.6)`);
@@ -232,7 +286,7 @@
       root.style.setProperty("--fr-tint", `rgba(${r}, ${g}, ${b}, 0.55)`);
     }
     root.setAttribute("data-fr", "");
-    rootCtx = { behind: base, flipped: false, overlay: false };
+    rootCtx = { behind: base, flipped: false, overlay: false, blurred: false };
     processTree(document.body, rootCtx);
     new MutationObserver(onMutations).observe(document.body, {
       childList: true,

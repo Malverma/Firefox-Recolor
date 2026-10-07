@@ -82,3 +82,22 @@ section { margin-bottom: 24px; }
 .status { min-height: 1.5em; margin: 12px 0 0; }
 .status.error { color: var(--error); }
 .status.ok { color: var(--ok); }
+
+.access {
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--accent-bg);
+}
+
+.access p { margin: 0 0 12px; }
+
+.access button {
+  font: inherit;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+}

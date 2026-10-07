@@ -15,9 +15,18 @@ html[data-fr] {
   background-attachment: fixed !important;
 }
 
-/* Large layout containers painted in the page's base color. */
+/* Containers painted in the color behind them, and fades into that color. */
 html[data-fr] [data-fr-clear] {
   background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Small sticky or floating bars in the color behind them (search and chat
+   boxes): see-through like the page, but blurred so scrolled content
+   underneath stays out of the way. */
+html[data-fr] [data-fr-frost] {
+  background-color: transparent !important;
+  backdrop-filter: blur(12px) !important;
 }
 
 /* Headers, sidebars and other opaque panels: their own color, translucent

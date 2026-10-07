@@ -1,0 +1,26 @@
+/* Recolor for Firefox: Gmail. Visual only. Loaded on top of generic mode
+   (css/generic.css and generic.js), which sets [data-fr] and --fr-base.
+
+   Gmail's class names are minified, so the inbox is found by its ARIA
+   roles: the message list is a table[role="grid"] with one tr[role="row"]
+   per email. */
+
+/* Everything around the list, so the wallpaper reaches it. */
+html[data-fr] div:has(table[role="grid"]) {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Each email: a light veil in the page's own color, so the wallpaper shows
+   through. Unread mail (.zE) is a little more solid so it stands out. */
+html[data-fr] table[role="grid"] tr[role="row"] {
+  background-color: color-mix(in srgb, var(--fr-base) 45%, transparent) !important;
+}
+
+html[data-fr] table[role="grid"] tr[role="row"].zE {
+  background-color: color-mix(in srgb, var(--fr-base) 65%, transparent) !important;
+}
+
+html[data-fr] table[role="grid"] tr[role="row"] > td {
+  background-color: transparent !important;
+}

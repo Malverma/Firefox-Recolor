@@ -100,4 +100,20 @@ dropzone.addEventListener("drop", (e) => {
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
 
+// Website access: without it the background can't be shown anywhere.
+const access = document.getElementById("access");
+const HOSTS = { origins: browser.runtime.getManifest().host_permissions };
+
+async function checkAccess() {
+  access.hidden = await browser.permissions.contains(HOSTS);
+}
+
+document.getElementById("grant").addEventListener("click", async () => {
+  await browser.permissions.request(HOSTS);
+  checkAccess();
+});
+browser.permissions.onAdded.addListener(checkAccess);
+browser.permissions.onRemoved.addListener(checkAccess);
+checkAccess();
+
 browser.storage.local.get(["customBackground", "customBackgroundUpdated"]).then(showCurrent);

@@ -70,7 +70,9 @@ The extension must **not**:
 
 ### 4.1 Default image
 
-- `images/background.jpg` (1920×1280, copyright-free), bundled with the extension.
+- `images/background.jpg` (1920×1280), bundled with the extension: a photo of
+  Yosemite Valley from Unsplash (https://unsplash.com/photos/kFHz9Xh3PPU),
+  free to use under the Unsplash License.
 - Used whenever no custom image has been uploaded.
 - A higher-resolution file can be dropped in at the same path with no code
   changes.
@@ -131,7 +133,7 @@ firefox-recolor/
 {
   "manifest_version": 3,
   "name": "Recolor for Firefox",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Puts a wallpaper of your choice behind every website, forcing light sites into dark mode, with tuned styles for YouTube and YouTube Music.",
   "homepage_url": "https://github.com/Malverma/Firefox-Recolor",
   "icons": {
@@ -142,6 +144,7 @@ firefox-recolor/
     "128": "icons/icon-128.png"
   },
   "permissions": ["storage"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "scripts": ["background.js"]
   },
@@ -199,9 +202,14 @@ firefox-recolor/
 }
 ```
 
-- `storage` is the only API permission. The content script matches cover
-  all `http`/`https` sites, so Firefox lists "Access your data for all
+- `storage` is the only API permission. `host_permissions` covers all
+  `http`/`https` sites, so Firefox asks for "Access your data for all
   websites" at install. No `tabs` permission.
+- Firefox only asks for website access on a fresh install, so it can still
+  end up ungranted (switched off in about:addons, or carried over from an
+  earlier install). Then the toolbar button shows a "!" badge and clicking it
+  shows Firefox's permission prompt; the background page shows an "Allow on
+  all websites" button and is opened on install/update.
 - The generic entry excludes every URL that has a dedicated stylesheet, so a
   page never gets both.
 - `background.jpg` is web-accessible on all sites so pages can load it as a
@@ -578,13 +586,13 @@ profile to test R13.
     the local default image.
 25. Disable the extension and reload each site. The original look comes back.
 
-Optional: `npx web-ext lint --ignore-files spec.md`.
+Optional: `npx web-ext lint --ignore-files spec.md privacy.md`.
 
 ## 8. Packaging & Distribution
 
 - Source lives at <https://github.com/Malverma/Firefox-Recolor>.
-- Build with `npx web-ext build --ignore-files spec.md` →
-  `web-ext-artifacts/firefox_recolor-2.0.0.zip`.
+- Build with `npx web-ext build --ignore-files spec.md privacy.md` →
+  `web-ext-artifacts/recolor_for_firefox-2.0.1.zip`.
 - For permanent install outside AMO, the add-on must be signed (via AMO
   unlisted submission) or used in Firefox Developer Edition/Nightly with
   `xpinstall.signatures.required = false`.
